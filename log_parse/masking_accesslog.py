@@ -7,7 +7,7 @@
 
 ##### Trecho do Access.log utilizado
 # #time_stamp "auth_user" src_ip status_code "req_line" "categories" "rep_level" "media_type" bytes_to_client "user_agent" "virus_name" "block_res"
-# [14/Oct/2018:23:59:42 -0300] "joao" 0:0:0:0:0:0:0:0 200 "CONNECT a.wunderlist.com:443 HTTP/1.1" "Interactive Web Applications" "Minimal Risk" "" 492 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36" "" "0"
+# [14/Oct/2018:23:59:42 -0300] "joao" 0:0:0:0:0:0:0:0 200 "CONNECT a.wunderlist.com:443 HTTP/1.1" "Interactive Web Applications" "Minimal Risk" "XX_Media_XX" 492 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36" "virus1" "block0"
 # [14/Oct/2018:23:59:42 -0300] "" 0:0:0:0:0:0:0:0 200 "CONNECT clients6.google.com:443 HTTP/1.1" "Internet Services" "Minimal Risk" "" 851 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36" "" "0"
 # [14/Oct/2018:23:59:42 -0300] "maria" 10.1.32.186 200 "CONNECT 0.docs.google.com:443 HTTP/1.1" "" "-" "" 1409 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36" "" "0"
 
@@ -17,8 +17,10 @@
 import pandas as pd
 import numpy as np
 import os
+import pprint
 # Instale o pacote  apache_log_parser com PIP do Anaconda no Windows atras de proxy
 # C:\Users\user\AppData\Local\Continuum\anaconda3\Scripts\pip.exe install apache-log-parser -v --proxy http://<user>:<senha>@<proxy.dominio>:<porta>
+# Infos em do pacote: https://github.com/ThiagoCruzBr/apache-log-parser
 import apache_log_parser
 
 
@@ -39,10 +41,16 @@ raw = f.readlines()
 
 # Checando se o parse está lendo corretamente o log
 # Passando todos os campos usados no log (datime, user...)
-line_parser = apache_log_parser.make_parser("%t \"%u\" %a %s \"%r\" \"%f\" \"%q\" \"%V\" %b \"%{User-Agent}i\" """)
-print('### Teste de leitura do log utilizando o parser definido.\n')
-print(line_parser(raw[1]))
 
+# Observa-se que para o log que foi lido, nem todos os campos possuem um parser predefinido
+# porém foi utilizado um parâmetro similiar para ele. 
+# Exemplo do campo: "categories" sendo utilizado o parâmetro \"%r\"
+line_parser = apache_log_parser.make_parser("%t \"%u\" %a %s \"%r\" \"%f\" \"%q\" \"%V\" %b \"%{User-Agent}i\" """)
+
+print('### Leitura do log sem o parser. ')
+pprint.pprint(raw[1])
+print('\n\n### Leitura do log com parser. Veja cada campo utilizado pelo parser.')
+pprint.pprint(line_parser(raw[1]))
 
 # Para cada arquivo de log faz o mascaramento e adciona em um unico arquivo
 # Cria um dataframe inicial para armazenar os usuários que serão encontrados nos logs
@@ -51,7 +59,7 @@ df_usuario = pd.DataFrame({"usuario_original":np.array(usuario)})
 df_usuario["usuario_mascarado"] = "mascarado"
 # Contador utilizado para mascarar usuarios. 
 # Altere conforme sua necessidade
-contador_usuario = 35 
+contador_usuario = 15 
 
 for arquivo_raw in lista_arquivos_logs:
     # Abre o arquivo 
@@ -69,10 +77,10 @@ for arquivo_raw in lista_arquivos_logs:
         try:
             # Mascara IPs (somente IPv4)
 			# Altere conforme necessidade
-            octeto0 = int(log['remote_ip'].split('.')[0])+3
-            octeto1 = int(log['remote_ip'].split('.')[1])+3
-            octeto2 = int(log['remote_ip'].split('.')[2])+5
-            octeto3 = int(log['remote_ip'].split('.')[3])+1
+            octeto0 = int(log['remote_ip'].split('.')[0])+5
+            octeto1 = int(log['remote_ip'].split('.')[1])+6
+            octeto2 = int(log['remote_ip'].split('.')[2])+7
+            octeto3 = int(log['remote_ip'].split('.')[3])+8
             IP_mascarado = str(octeto0)+'.'+str(octeto1)+'.'+str(octeto2)+'.'+str(octeto3)
 
             #### Mascara Usuários
@@ -96,7 +104,10 @@ for arquivo_raw in lista_arquivos_logs:
             ####
 
 			# Faz o parse somente dos eventos desejados e adciona na lista
-            dados = log['time_received'], IP_mascarado, u_mascarado, log['request_first_line'], log['filename'], log['query_string']
+            #dados = log['time_received'], IP_mascarado, u_mascarado, log['request_first_line'], log['filename'], log['query_string']
+            dados = log['time_received'], '"'+u_mascarado+'"', IP_mascarado, log['status'], '"'+log['request_first_line']+'"','"'+log['filename']+'"', '"'+log['query_string']+'"', '"'+log['server_name2']+'"',log['response_bytes_clf'], '"'+log['request_header_user_agent']+'"', '""', '"0"'
+
+            
             eventos_selecionados.append(dados)
                         
         except Exception:
@@ -113,7 +124,7 @@ for arquivo_raw in lista_arquivos_logs:
     # Como a saida da lista contém o caracter " ' "
 	# remove-se para não poluir o arquivo de saída  
     for reg in eventos_selecionados:
-        arquivo.writelines(','.join(reg) + '\n')
+        arquivo.writelines(' '.join(reg) + '\n') # separa cada campo por espaço e remove o '
     arquivo.close()
 
 # Salva a relação dos Usuários Originais e Mascarados
